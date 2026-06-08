@@ -127,19 +127,31 @@
   }
 
   // Helper routine to pipe overlay card payloads directly into popup storage
-  function syncPayloadToPopupStorage(payload) {
+function syncPayloadToPopupStorage(payload) {
     if (!payload) return;
     const isLand = payload.kind === 'land';
+
+    // Format the date back into a human-readable format if it's an object range
+    let dateStr = '';
+    if (payload.dateRange) {
+      if (typeof payload.dateRange === 'string') {
+        dateStr = payload.dateRange;
+      } else if (payload.dateRange.gte) {
+        // Formats "2025-04-10" -> "10/04/2025" for the form input layout
+        const parts = payload.dateRange.gte.split('-');
+        dateStr = parts.length === 3 ? `${parts[2]}/${parts[1]}/${parts[0]}` : payload.dateRange.gte;
+      }
+    }
 
     const stateUpdate = {
       mode: isLand ? 'land' : 'dpe',
       inputs: {
         'dpe-form_postal': payload.postal || '',
         'dpe-form_surface': payload.surface || '',
-        'dpe-form_energyClass': payload.energyClass || '',
-        'dpe-form_gesClass': payload.gesClass || '',
-        'dpe-form_buildingType': payload.buildingType || '',
-        'dpe-form_date': payload.dateRange ? (payload.dateRange.gte || '') : '',
+        'dpe-form_energyClass': payload.energyClass ? payload.energyClass.toUpperCase() : '',
+        'dpe-form_gesClass': payload.gesClass ? payload.gesClass.toUpperCase() : '',
+        'dpe-form_buildingType': payload.buildingType ? payload.buildingType.toLowerCase() : '',
+        'dpe-form_date': dateStr,
         'land-form_postal': payload.postal || '',
         'land-form_surface': payload.surface || '',
         'land-form_city': payload.city || '',
@@ -152,7 +164,9 @@
     };
 
     if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
-      chrome.storage.local.set({ immodexPopupState: stateUpdate });
+      chrome.storage.local.set({ immodexPopupState: stateUpdate }, () => {
+        console.log('[immodex] Shared storage synced with payload:', stateUpdate.inputs);
+      });
     }
   }
 
