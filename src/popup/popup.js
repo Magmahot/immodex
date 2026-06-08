@@ -25,7 +25,6 @@ function savePopupState() {
   // Capture all inputs from both forms
   document.querySelectorAll('input, select').forEach(element => {
     if (element.name) {
-      // Find which form it belongs to so we don't accidentally mix up elements with the same name across forms
       const formId = element.closest('form')?.id || 'global';
       const key = `${formId}_${element.name}`;
       
@@ -47,9 +46,13 @@ function restorePopupState() {
     
     const state = result.immodexPopupState;
 
-    // 1. Restore the active tab view mode
+    // 1. Restore the active tab view mode (without wiping records via deep overwrite)
     if (state.mode) {
-      setMode(state.mode);
+      mode = state.mode;
+      modeBtnDpe.classList.toggle('active', mode === 'dpe');
+      modeBtnLand.classList.toggle('active', mode === 'land');
+      dpeForm.classList.toggle('hidden', mode !== 'dpe');
+      landForm.classList.toggle('hidden', mode !== 'land');
     }
 
     // 2. Restore all text and selector inputs
@@ -161,7 +164,7 @@ function el(tag, attrs, ...children) {
 
 function setStatus(message, isError = false) {
   if (!message) {
-    statusBox.add('hidden');
+    statusBox.classList.add('hidden');
     statusBox.textContent = '';
     savePopupState();
     return;
@@ -185,7 +188,7 @@ function setMode(next) {
 
 function gmapsLink(address, postal, city) {
   const q = encodeURIComponent([address, postal, city].filter(Boolean).join(', '));
-  return `https://www.google.com/maps/search/?api=1&query=${q}`;
+  return `http://googleusercontent.com/maps.google.com/?q=${q}`;
 }
 
 function confidenceClass(score) {
@@ -289,7 +292,7 @@ function renderLandResult(result) {
       el(
         'div',
         { class: 'result-links' },
-        el('a', { href: `https://www.google.com/maps?q=${lat.toFixed(6)},${lon.toFixed(6)}`, target: '_blank', rel: 'noopener noreferrer' }, 'Google Maps'),
+        el('a', { href: `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(6)},${lon.toFixed(6)}`, target: '_blank', rel: 'noopener noreferrer' }, 'Google Maps'),
         el(
           'a',
           {
