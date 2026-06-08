@@ -19,7 +19,11 @@
       "128": "icons/128.png"
     }
   },
-  "permissions": ["storage"],
+  "permissions": [
+  "storage",
+  "activeTab",
+  "scripting"
+],
   "host_permissions": [
     "https://data.ademe.fr/*",
     "https://apicarto.ign.fr/*",
