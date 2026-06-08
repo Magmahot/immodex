@@ -9,6 +9,81 @@ const resultsBox = document.getElementById('results');
 
 let mode = 'dpe';
 
+// --- STATE PERSISTENCE CORE LOGIC ---
+
+// Helper to save current inputs, view mode, and results data
+function savePopupState() {
+  const state = {
+    mode: mode,
+    inputs: {},
+    lastResults: resultsBox.innerHTML,
+    lastStatus: statusBox.textContent,
+    lastStatusIsHidden: statusBox.classList.contains('hidden'),
+    lastStatusIsError: statusBox.classList.contains('error')
+  };
+
+  // Capture all inputs from both forms
+  document.querySelectorAll('input, select').forEach(element => {
+    if (element.name) {
+      // Find which form it belongs to so we don't accidentally mix up elements with the same name across forms
+      const formId = element.closest('form')?.id || 'global';
+      const key = `${formId}_${element.name}`;
+      
+      if (element.type === 'checkbox' || element.type === 'radio') {
+        state.inputs[key] = element.checked;
+      } else {
+        state.inputs[key] = element.value;
+      }
+    }
+  });
+
+  chrome.storage.local.set({ immodexPopupState: state });
+}
+
+// Helper to restore everything when popup initializes
+function restorePopupState() {
+  chrome.storage.local.get(['immodexPopupState'], (result) => {
+    if (!result || !result.immodexPopupState) return;
+    
+    const state = result.immodexPopupState;
+
+    // 1. Restore the active tab view mode
+    if (state.mode) {
+      setMode(state.mode);
+    }
+
+    // 2. Restore all text and selector inputs
+    if (state.inputs) {
+      Object.keys(state.inputs).forEach(key => {
+        const [formId, name] = key.split('_');
+        const form = document.getElementById(formId);
+        if (form) {
+          const element = form.querySelector(`[name="${name}"]`);
+          if (element) {
+            if (element.type === 'checkbox' || element.type === 'radio') {
+              element.checked = state.inputs[key];
+            } else {
+              element.value = state.inputs[key];
+            }
+          }
+        }
+      });
+    }
+
+    // 3. Restore any rendered HTML maps/cards and statuses
+    if (state.lastResults) {
+      resultsBox.innerHTML = state.lastResults;
+    }
+    if (state.lastStatus !== undefined) {
+      statusBox.textContent = state.lastStatus;
+      statusBox.classList.toggle('hidden', state.lastStatusIsHidden);
+      statusBox.classList.toggle('error', state.lastStatusIsError);
+    }
+  });
+}
+
+// ------------------------------------
+
 function normalizePostal(value) {
   if (!value) return null;
   const digits = String(value).replace(/\D+/g, '');
@@ -86,13 +161,15 @@ function el(tag, attrs, ...children) {
 
 function setStatus(message, isError = false) {
   if (!message) {
-    statusBox.classList.add('hidden');
+    statusBox.add('hidden');
     statusBox.textContent = '';
+    savePopupState();
     return;
   }
   statusBox.classList.remove('hidden');
   statusBox.classList.toggle('error', isError);
   statusBox.textContent = message;
+  savePopupState();
 }
 
 function setMode(next) {
@@ -103,6 +180,7 @@ function setMode(next) {
   landForm.classList.toggle('hidden', mode !== 'land');
   setStatus('');
   resultsBox.innerHTML = '';
+  savePopupState();
 }
 
 function gmapsLink(address, postal, city) {
@@ -126,6 +204,7 @@ function renderDpeResult(result) {
   resultsBox.innerHTML = '';
   if (!result.candidates || result.candidates.length === 0) {
     resultsBox.appendChild(el('div', { class: 'empty' }, 'Aucune correspondance dans le registre ADEME.'));
+    savePopupState();
     return;
   }
   const top = result.candidates[0];
@@ -184,12 +263,14 @@ function renderDpeResult(result) {
     }
     resultsBox.appendChild(list);
   }
+  savePopupState();
 }
 
 function renderLandResult(result) {
   resultsBox.innerHTML = '';
   if (!result.candidates || result.candidates.length === 0) {
     resultsBox.appendChild(el('div', { class: 'empty' }, 'Aucune parcelle trouvée dans le cadastre IGN.'));
+    savePopupState();
     return;
   }
   const top = result.candidates[0];
@@ -252,6 +333,7 @@ function renderLandResult(result) {
     }
     resultsBox.appendChild(list);
   }
+  savePopupState();
 }
 
 async function onDpeSubmit(ev) {
@@ -305,7 +387,21 @@ async function onLandSubmit(ev) {
   }
 }
 
-dpeForm.addEventListener('submit', onDpeSubmit);
-landForm.addEventListener('submit', onLandSubmit);
-modeBtnDpe.addEventListener('click', () => setMode('dpe'));
-modeBtnLand.addEventListener('click', () => setMode('land'));
+// Setup Event Listeners and Initializer
+document.addEventListener('DOMContentLoaded', () => {
+  // 1. Recover old form inputs and view instantly
+  restorePopupState();
+
+  // 2. Map form hooks
+  dpeForm.addEventListener('submit', onDpeSubmit);
+  landForm.addEventListener('submit', onLandSubmit);
+  modeBtnDpe.addEventListener('click', () => setMode('dpe'));
+  modeBtnLand.addEventListener('click', () => setMode('land'));
+
+  // 3. Catch typing/dropdown changes globally inside popup to auto-save in background
+  document.addEventListener('input', (e) => {
+    if (e.target.tagName === 'INPUT' || e.target.tagName === 'SELECT') {
+      savePopupState();
+    }
+  });
+});
