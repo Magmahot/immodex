@@ -126,6 +126,36 @@
     card.appendChild(fields);
   }
 
+  // Helper routine to pipe overlay card payloads directly into popup storage
+  function syncPayloadToPopupStorage(payload) {
+    if (!payload) return;
+    const isLand = payload.kind === 'land';
+
+    const stateUpdate = {
+      mode: isLand ? 'land' : 'dpe',
+      inputs: {
+        'dpe-form_postal': payload.postal || '',
+        'dpe-form_surface': payload.surface || '',
+        'dpe-form_energyClass': payload.energyClass || '',
+        'dpe-form_gesClass': payload.gesClass || '',
+        'dpe-form_buildingType': payload.buildingType || '',
+        'dpe-form_date': payload.dateRange ? (payload.dateRange.gte || '') : '',
+        'land-form_postal': payload.postal || '',
+        'land-form_surface': payload.surface || '',
+        'land-form_city': payload.city || '',
+        'land-form_section': payload.section || ''
+      },
+      lastResults: '',
+      lastStatus: '',
+      lastStatusIsHidden: true,
+      lastStatusIsError: false
+    };
+
+    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.local) {
+      chrome.storage.local.set({ immodexPopupState: stateUpdate });
+    }
+  }
+
   function showLoading(payload) {
     const card = ensureCard();
     card.innerHTML = '';
@@ -213,6 +243,11 @@
     renderHeader(card);
     renderFields(card, payload);
 
+    const handleModifyClick = () => {
+      syncPayloadToPopupStorage(payload);
+      if (onModify) onModify();
+    };
+
     if (!result || !result.candidates || result.candidates.length === 0) {
       card.appendChild(
         el(
@@ -222,7 +257,7 @@
         )
       );
       const footer = el('div', { class: 'immodex-footer' });
-      if (onModify) footer.appendChild(el('a', { onclick: onModify }, 'Modifier les champs'));
+      if (onModify) footer.appendChild(el('a', { onclick: handleModifyClick }, 'Modifier les champs'));
       footer.appendChild(renderCredit());
       card.appendChild(footer);
       return;
@@ -331,7 +366,7 @@
     if (result.cached) footerParts.push(el('span', null, 'cache'));
     footerParts.push(el('span', null, `dataset ${result.dataset}`));
     footerParts.push(el('span', null, `tier ${result.tier}`));
-    if (onModify) footerParts.push(el('a', { onclick: onModify }, 'Modifier les champs'));
+    if (onModify) footerParts.push(el('a', { onclick: handleModifyClick }, 'Modifier les champs'));
     footerParts.push(renderCredit());
     card.appendChild(el('div', { class: 'immodex-footer' }, ...footerParts));
   }
@@ -360,6 +395,11 @@
     renderHeader(card);
     renderFields(card, payload);
 
+    const handleModifyClick = () => {
+      syncPayloadToPopupStorage(payload);
+      if (onModify) onModify();
+    };
+
     if (!result || !result.candidates || result.candidates.length === 0) {
       card.appendChild(
         el(
@@ -369,7 +409,7 @@
         )
       );
       const footer = el('div', { class: 'immodex-footer' });
-      if (onModify) footer.appendChild(el('a', { onclick: onModify }, 'Modifier les champs'));
+      if (onModify) footer.appendChild(el('a', { onclick: handleModifyClick }, 'Modifier les champs'));
       footer.appendChild(renderCredit());
       card.appendChild(footer);
       return;
@@ -497,7 +537,7 @@
     if (result.cached) footerParts.push(el('span', null, 'cache'));
     if (result.tier != null) footerParts.push(el('span', null, `tier ${result.tier}`));
     if (result.total != null) footerParts.push(el('span', null, `${result.total} candidat(s)`));
-    if (onModify) footerParts.push(el('a', { onclick: onModify }, 'Modifier les champs'));
+    if (onModify) footerParts.push(el('a', { onclick: handleModifyClick }, 'Modifier les champs'));
     footerParts.push(renderCredit());
     card.appendChild(el('div', { class: 'immodex-footer' }, ...footerParts));
   }
